@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, Chip, useTheme } from 'react-native-paper';
+import { Card, Text, Chip, Icon, useTheme } from 'react-native-paper';
 
 export default function ExerciseCard({ exercise, index }) {
   const theme = useTheme();
@@ -31,17 +31,20 @@ export default function ExerciseCard({ exercise, index }) {
             <Chip
               mode="flat"
               compact
-              style={[styles.chip, { backgroundColor: '#76FF03' + '20' }]}
-              textStyle={[styles.chipText, { color: '#76FF03' }]}
+              style={[styles.chip, { backgroundColor: theme.colors.accent + '20' }]}
+              textStyle={[styles.chipText, { color: theme.colors.accent }]}
             >
               {exercise.reps} reps
             </Chip>
           </View>
         </View>
         <View style={[styles.reasoningContainer, { borderLeftColor: theme.colors.primary + '40' }]}>
-          <Text variant="bodySmall" style={[styles.reasoning, { color: theme.colors.placeholder }]}>
-            🤖 {exercise.reasoning}
-          </Text>
+          <View style={styles.reasoningRow}>
+            <Icon source="auto-fix" size={16} color={theme.colors.placeholder} />
+            <Text variant="bodySmall" style={[styles.reasoning, { color: theme.colors.placeholder }]}>
+              {exercise.reasoning}
+            </Text>
+          </View>
         </View>
       </Card.Content>
     </Card>
@@ -52,8 +55,8 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginVertical: 6,
-    borderRadius: 16,
-    elevation: 4,
+    borderRadius: 8,
+    elevation: 2,
   },
   header: {
     marginBottom: 8,
@@ -97,7 +100,13 @@ const styles = StyleSheet.create({
     marginLeft: 44,
     marginTop: 4,
   },
+  reasoningRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
   reasoning: {
+    flex: 1,
     lineHeight: 18,
     fontStyle: 'italic',
   },

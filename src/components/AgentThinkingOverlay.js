@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Icon, Text, useTheme } from 'react-native-paper';
 
 export default function AgentThinkingOverlay({ visible }) {
   const theme = useTheme();
@@ -51,7 +51,7 @@ export default function AgentThinkingOverlay({ visible }) {
 
   return (
     <View style={styles.overlay}>
-      <View style={[styles.card, { backgroundColor: theme.colors.surface + 'F0' }]}>
+      <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
         <Animated.View
           style={[
             styles.brainContainer,
@@ -61,7 +61,7 @@ export default function AgentThinkingOverlay({ visible }) {
             },
           ]}
         >
-          <Text style={styles.brain}>🧠</Text>
+          <Icon source="brain" size={46} color={theme.colors.primary} />
         </Animated.View>
         <Text
           variant="titleMedium"
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: 32,
-    borderRadius: 24,
+    borderRadius: 8,
     alignItems: 'center',
     width: 280,
     elevation: 8,
@@ -123,9 +123,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-  },
-  brain: {
-    fontSize: 48,
   },
   title: {
     fontWeight: '700',

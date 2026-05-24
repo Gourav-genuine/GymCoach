@@ -39,22 +39,20 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginVertical: 8,
-    borderRadius: 16,
-    elevation: 4,
+    borderRadius: 8,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     marginBottom: 12,
-  },
-  icon: {
-    marginRight: 10,
   },
   title: {
     fontWeight: '700',
   },
   messageContainer: {
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 14,
   },
   message: {

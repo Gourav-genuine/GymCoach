@@ -1,14 +1,13 @@
 import React from 'react';
-import { Text as RNText } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useTheme } from 'react-native-paper';
+import { Icon, useTheme } from 'react-native-paper';
 import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ emoji }) {
-  return <RNText style={{ fontSize: 22 }}>{emoji}</RNText>;
+function TabIcon({ source, color }) {
+  return <Icon source={source} size={22} color={color} />;
 }
 
 export default function AppNavigator() {
@@ -22,7 +21,7 @@ export default function AppNavigator() {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.surfaceVariant,
           borderTopWidth: 1,
-          height: 60,
+          height: 62,
           paddingBottom: 8,
           paddingTop: 4,
         },
@@ -39,7 +38,7 @@ export default function AppNavigator() {
         component={ActiveWorkoutScreen}
         options={{
           tabBarLabel: 'Workout',
-          tabBarIcon: () => <TabIcon emoji="🏋️" />,
+          tabBarIcon: ({ color }) => <TabIcon source="dumbbell" color={color} />,
         }}
       />
       <Tab.Screen
@@ -47,7 +46,7 @@ export default function AppNavigator() {
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Insights',
-          tabBarIcon: () => <TabIcon emoji="📊" />,
+          tabBarIcon: ({ color }) => <TabIcon source="chart-line" color={color} />,
         }}
       />
     </Tab.Navigator>

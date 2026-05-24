@@ -71,17 +71,17 @@ export default function DashboardScreen() {
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surfaceVariant,
     decimalCount: 0,
-    color: (opacity = 1) => `rgba(0, 229, 255, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(136, 146, 164, ${opacity})`,
-    style: { borderRadius: 16 },
+    color: (opacity = 1) => `rgba(215, 199, 161, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(155, 147, 134, ${opacity})`,
+    style: { borderRadius: 8 },
     propsForDots: {
       r: '5',
       strokeWidth: '2',
-      stroke: '#00E5FF',
+      stroke: theme.colors.primary,
     },
     propsForBackgroundLines: {
       strokeDasharray: '',
-      stroke: 'rgba(136, 146, 164, 0.15)',
+      stroke: 'rgba(155, 147, 134, 0.15)',
     },
   };
 
