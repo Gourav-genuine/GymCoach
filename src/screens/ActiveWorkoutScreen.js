@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   FlatList,
@@ -6,17 +6,13 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
-  RefreshControl,
 } from 'react-native';
-import { Text, Snackbar, Chip, useTheme, Appbar } from 'react-native-paper';
+import { Text, Snackbar, Chip, useTheme, Appbar, ActivityIndicator } from 'react-native-paper';
 import ExerciseCard from '../components/ExerciseCard';
 import AgentChatInput from '../components/AgentChatInput';
 import AgentThinkingOverlay from '../components/AgentThinkingOverlay';
-import { subscribeToTodaysWorkout, sendFeedback } from '../services/workoutService';
-import { auth } from '../config/firebase';
-
-// Hardcoded demo UID matching the seed script
-const DEMO_UID = 'demo-user-001';
+import { generateTodaysWorkout, subscribeToTodaysWorkout, sendFeedback } from '../services/workoutService';
+import { useAuth } from '../context/AuthContext';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -25,20 +21,24 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 export default function ActiveWorkoutScreen() {
   const theme = useTheme();
+  const { user, signOut } = useAuth();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [agentThinking, setAgentThinking] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
-  const [prevExerciseCount, setPrevExerciseCount] = useState(0);
+  const prevExerciseCount = useRef(0);
 
   useEffect(() => {
-    const unsubscribe = subscribeToTodaysWorkout(DEMO_UID, (data) => {
+    if (!user?.uid) return undefined;
+
+    const unsubscribe = subscribeToTodaysWorkout(user.uid, (data) => {
       // Animate layout changes when exercises change
       if (data && data.exercises) {
-        if (prevExerciseCount > 0 && data.exercises.length !== prevExerciseCount) {
+        if (prevExerciseCount.current > 0 && data.exercises.length !== prevExerciseCount.current) {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         }
-        setPrevExerciseCount(data.exercises.length);
+        prevExerciseCount.current = data.exercises.length;
       }
 
       setWorkout(data);
@@ -46,13 +46,40 @@ export default function ActiveWorkoutScreen() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    async function ensureWorkout() {
+      if (loading || workout || generating || !user?.uid) return;
+
+      setGenerating(true);
+      setAgentThinking(true);
+      try {
+        const result = await generateTodaysWorkout(user.uid);
+        setSnackbar({
+          visible: true,
+          message: result.agent_message || 'Your workout is ready.',
+        });
+      } catch (error) {
+        console.error('Workout generation error:', error);
+        setSnackbar({
+          visible: true,
+          message: 'IronAgent could not generate today’s workout. Try again in a moment.',
+        });
+      } finally {
+        setGenerating(false);
+        setAgentThinking(false);
+      }
+    }
+
+    ensureWorkout();
+  }, [generating, loading, user?.uid, workout]);
 
   const handleSendFeedback = useCallback(async (message) => {
 
     setAgentThinking(true);
     try {
-      const result = await sendFeedback(DEMO_UID, message, workout?.id);
+      const result = await sendFeedback(user.uid, message, workout?.id);
       if (result.agent_message) {
         setSnackbar({ visible: true, message: result.agent_message });
       }
@@ -60,19 +87,19 @@ export default function ActiveWorkoutScreen() {
       console.error('Feedback error:', error);
       setSnackbar({
         visible: true,
-        message: '⚠️ Failed to reach IronAgent. Please try again.',
+        message: 'Failed to reach IronAgent. Please try again.',
       });
     } finally {
       setAgentThinking(false);
     }
-  }, [workout?.id]);
+  }, [user?.uid, workout?.id]);
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'in-progress': return '#00E5FF';
-      case 'completed': return '#76FF03';
-      case 'pending': return '#FFA726';
-      default: return '#8892A4';
+      case 'in-progress': return theme.colors.primary;
+      case 'completed': return '#7FA987';
+      case 'pending': return '#D0A85C';
+      default: return theme.colors.placeholder;
     }
   };
 
@@ -84,7 +111,7 @@ export default function ActiveWorkoutScreen() {
     <View style={styles.headerContainer}>
       <View style={styles.workoutInfo}>
         <Text variant="headlineSmall" style={[styles.workoutTitle, { color: theme.colors.text }]}>
-          🏋️ Today's Session
+          Today's Session
         </Text>
         {workout && (
           <View style={styles.statusRow}>
@@ -103,6 +130,30 @@ export default function ActiveWorkoutScreen() {
             </Text>
           </View>
         )}
+        {workout?.agentSummary && (
+          <View style={[styles.agentSummary, { backgroundColor: theme.colors.surfaceVariant }]}>
+            <Text variant="labelMedium" style={{ color: theme.colors.primary }}>
+              IronAgent plan
+            </Text>
+            <Text variant="bodySmall" style={[styles.agentSummaryText, { color: theme.colors.text }]}>
+              {workout.agentSummary}
+            </Text>
+          </View>
+        )}
+        <View style={styles.quickActions}>
+          {['Low energy', 'Short on time', 'Sore legs', 'No machines'].map((prompt) => (
+            <Chip
+              key={prompt}
+              compact
+              mode="outlined"
+              onPress={() => handleSendFeedback(prompt)}
+              disabled={agentThinking}
+              style={styles.quickChip}
+            >
+              {prompt}
+            </Chip>
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -110,9 +161,9 @@ export default function ActiveWorkoutScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.background }]}>
-        <Text style={styles.loadingEmoji}>🏋️</Text>
+        <ActivityIndicator color={theme.colors.primary} />
         <Text variant="bodyLarge" style={{ color: theme.colors.placeholder, marginTop: 12 }}>
-          Loading your workout...
+          Checking today’s plan...
         </Text>
       </View>
     );
@@ -121,13 +172,13 @@ export default function ActiveWorkoutScreen() {
   if (!workout) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.background }]}>
-        <Text style={styles.loadingEmoji}>📋</Text>
         <Text variant="titleMedium" style={{ color: theme.colors.text, marginTop: 12 }}>
-          No workout scheduled
+          IronAgent is building today’s session
         </Text>
         <Text variant="bodyMedium" style={{ color: theme.colors.placeholder, marginTop: 4 }}>
-          Check back later or ask IronAgent to create one
+          Your profile and recent history are being used to create the plan.
         </Text>
+        <AgentThinkingOverlay visible={agentThinking || generating} />
       </View>
     );
   }
@@ -137,8 +188,9 @@ export default function ActiveWorkoutScreen() {
       <Appbar.Header style={{ backgroundColor: theme.colors.background }} elevated={false}>
         <Appbar.Content
           title="IronAgent"
-          titleStyle={{ color: theme.colors.primary, fontWeight: '800', fontSize: 22 }}
+          titleStyle={{ color: theme.colors.text, fontWeight: '800', fontSize: 22 }}
         />
+        <Appbar.Action icon="logout" iconColor={theme.colors.placeholder} onPress={signOut} />
       </Appbar.Header>
 
       <FlatList
@@ -197,7 +249,22 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
-  loadingEmoji: {
-    fontSize: 48,
+  agentSummary: {
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 14,
+  },
+  agentSummaryText: {
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  quickChip: {
+    borderRadius: 8,
   },
 });

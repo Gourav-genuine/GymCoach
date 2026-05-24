@@ -1,15 +1,15 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { Card, Icon, Text, useTheme } from 'react-native-paper';
 
-export default function InsightCard({ title, message, icon = '🧠' }) {
+export default function InsightCard({ title, message, icon = 'brain' }) {
   const theme = useTheme();
 
   return (
     <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
       <Card.Content>
         <View style={styles.header}>
-          <Text style={styles.icon}>{icon}</Text>
+          <Icon source={icon} size={22} color={theme.colors.primary} />
           <Text
             variant="titleMedium"
             style={[styles.title, { color: theme.colors.primary }]}
@@ -48,7 +48,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   icon: {
-    fontSize: 24,
     marginRight: 10,
   },
   title: {

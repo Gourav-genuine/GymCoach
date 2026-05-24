@@ -10,7 +10,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import axios from 'axios';
-import { db } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 /**
  * Get the start and end timestamps for today (midnight to midnight).
@@ -98,6 +98,32 @@ export function subscribeToTodaysWorkout(uid, callback) {
   });
 }
 
+function getFunctionUrl(kind = 'feedback') {
+  const feedbackUrl = process.env.EXPO_PUBLIC_CLOUD_FUNCTION_URL;
+  if (!feedbackUrl) {
+    throw new Error('Cloud Function URL not configured. Set EXPO_PUBLIC_CLOUD_FUNCTION_URL in .env');
+  }
+
+  if (kind === 'generate') {
+    return process.env.EXPO_PUBLIC_GENERATE_WORKOUT_FUNCTION_URL ||
+      feedbackUrl.replace(/processWorkoutFeedback$/, 'generateTodaysWorkout');
+  }
+
+  return feedbackUrl;
+}
+
+async function getAuthHeaders() {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('You must be signed in to use IronAgent.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 /**
  * Fetch past completed workouts for the dashboard chart.
  */
@@ -125,11 +151,7 @@ export async function getRecentWorkouts(uid, days = 7) {
  * Returns the agent's response message.
  */
 export async function sendFeedback(uid, userMessage, workoutId) {
-  const functionUrl = process.env.EXPO_PUBLIC_CLOUD_FUNCTION_URL;
-
-  if (!functionUrl) {
-    throw new Error('Cloud Function URL not configured. Set EXPO_PUBLIC_CLOUD_FUNCTION_URL in .env');
-  }
+  const functionUrl = getFunctionUrl('feedback');
 
   try {
     const response = await axios.post(functionUrl, {
@@ -137,13 +159,29 @@ export async function sendFeedback(uid, userMessage, workoutId) {
       workout_id: workoutId,
       user_message: userMessage,
     }, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       timeout: 30000, // 30s timeout for LLM processing
     });
 
     return response.data;
   } catch (error) {
     console.error('Error sending feedback:', error);
+    throw error;
+  }
+}
+
+export async function generateTodaysWorkout(uid) {
+  const functionUrl = getFunctionUrl('generate');
+
+  try {
+    const response = await axios.post(functionUrl, { uid }, {
+      headers: await getAuthHeaders(),
+      timeout: 30000,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error generating workout:', error);
     throw error;
   }
 }

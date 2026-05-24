@@ -1,28 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, ScrollView, Dimensions } from 'react-native';
-import { Text, Card, List, Divider, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { Text, Card, List, Divider, useTheme, ActivityIndicator } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import InsightCard from '../components/InsightCard';
 import { getRecentWorkouts } from '../services/workoutService';
-
-// Hardcoded demo UID matching the seed script
-const DEMO_UID = 'demo-user-001';
+import { useAuth } from '../context/AuthContext';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const { user, profile } = useAuth();
   const [recentWorkouts, setRecentWorkouts] = useState([]);
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.uid) {
+      loadData();
+    }
+  }, [user?.uid]);
 
   const loadData = async () => {
     try {
-      const workouts = await getRecentWorkouts(DEMO_UID, 7);
+      const workouts = await getRecentWorkouts(user.uid, 7);
       setRecentWorkouts(workouts);
 
       // Build chart data from workouts
@@ -95,7 +96,7 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.background }]}>
-        <Text style={{ fontSize: 48 }}>📊</Text>
+        <ActivityIndicator color={theme.colors.primary} />
         <Text variant="bodyLarge" style={{ color: theme.colors.placeholder, marginTop: 12 }}>
           Loading insights...
         </Text>
@@ -112,10 +113,10 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.text }]}>
-          📊 Insights
+          Insights
         </Text>
         <Text variant="bodyMedium" style={{ color: theme.colors.placeholder }}>
-          Your training analytics & AI recommendations
+          Agent analysis from your recent training
         </Text>
       </View>
 
@@ -145,15 +146,15 @@ export default function DashboardScreen() {
 
       {/* Agent Insight */}
       <InsightCard
-        title="Recovery Analysis"
-        icon="🧠"
-        message="Volume maintained, but lower-back recovery is lagging. Suggesting machine focus for the next 48 hours. Your bicep endurance has improved 12% this week — keep the hammer curls going."
+        title="Agent Read"
+        icon="brain"
+        message={buildAgentInsight(recentWorkouts, profile)}
       />
 
       <InsightCard
-        title="Training Tip"
-        icon="💡"
-        message="Consider adding a 5-minute foam rolling session before your next back workout. This can reduce lower-back stiffness by up to 30% and improve your deadlift range of motion."
+        title="Next Bias"
+        icon="target"
+        message={buildNextBias(recentWorkouts, profile)}
       />
 
       {/* Recent Workouts */}
@@ -179,7 +180,7 @@ export default function DashboardScreen() {
                   left={() => (
                     <View style={[styles.workoutIcon, { backgroundColor: theme.colors.primary + '20' }]}>
                       <Text style={{ fontSize: 18 }}>
-                        {w.status === 'completed' ? '✅' : '🏋️'}
+                        {w.status === 'completed' ? '✓' : '•'}
                       </Text>
                     </View>
                   )}
@@ -217,6 +218,33 @@ function calculateVolume(exercises = []) {
     total += (ex.sets || 0) * avgReps;
   });
   return total;
+}
+
+function buildAgentInsight(workouts, profile) {
+  if (!workouts.length) {
+    return `Once your first session is logged, IronAgent will compare volume, constraints, and goal fit for ${profile?.goal || 'your current goal'}.`;
+  }
+
+  const completed = workouts.filter((workout) => workout.status === 'completed').length;
+  const totalVolume = workouts.reduce((sum, workout) => sum + calculateVolume(workout.exercises), 0);
+  const avgVolume = Math.round(totalVolume / workouts.length);
+  return `${completed} completed sessions are in the recent window. Average planned volume is ${avgVolume}, so the next agent adjustment should preserve momentum while respecting ${formatList(profile?.constraints) || 'your recovery signals'}.`;
+}
+
+function buildNextBias(workouts, profile) {
+  const equipment = formatList(profile?.equipment) || 'available equipment';
+  if (!workouts.length) {
+    return `The first generated plan will bias toward ${profile?.goal || 'your goal'} using ${equipment}.`;
+  }
+
+  const lastWorkout = workouts[workouts.length - 1];
+  const exerciseNames = (lastWorkout.exercises || []).slice(0, 2).map((exercise) => exercise.name).join(', ');
+  return `Recent work included ${exerciseNames || 'your current plan'}. IronAgent should bias the next session toward balanced stimulus, controlled fatigue, and ${equipment}.`;
+}
+
+function formatList(value) {
+  if (!Array.isArray(value) || value.length === 0) return '';
+  return value.join(', ');
 }
 
 const styles = StyleSheet.create({
