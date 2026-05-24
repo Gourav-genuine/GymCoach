@@ -146,9 +146,16 @@ export default function OnboardingScreen() {
               onPress={() => toggleAnswer(option)}
               style={[
                 styles.chip,
-                selected && { backgroundColor: theme.colors.primaryContainer },
+                {
+                  backgroundColor: selected ? theme.colors.selectedOption : theme.colors.optionSurface,
+                  borderColor: selected ? theme.colors.selectedOption : theme.colors.optionBorder,
+                },
               ]}
-              textStyle={{ color: selected ? theme.colors.onPrimaryContainer : theme.colors.text }}
+              selectedColor={selected ? theme.colors.onSelectedOption : theme.colors.text}
+              textStyle={{
+                color: selected ? theme.colors.onSelectedOption : theme.colors.text,
+                fontWeight: '700',
+              }}
             >
               {option}
             </Chip>
@@ -236,6 +243,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderRadius: 8,
+    borderWidth: 1,
   },
   notes: {
     marginTop: 18,

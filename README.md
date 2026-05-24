@@ -16,6 +16,24 @@ IronAgent is an AI-powered fitness coach that builds adaptive daily workouts aro
 
 Expo, React Native, React Navigation, React Native Paper, Firebase Auth, Firestore, Firebase Functions, and Gemini-backed agent logic.
 
+## Run on Android
+
+1. Install dependencies:
+
+   ```sh
+   npm install
+   ```
+
+2. Start an Android emulator or connect an Android device with USB debugging enabled.
+
+3. Run the app:
+
+   ```sh
+   npm run android
+   ```
+
+You can also run `npm start` and press `a` in the Expo terminal to open the app on Android.
+
 ## Product Vision
 
 IronAgent is built to feel less like a static workout tracker and more like a focused training partner: it plans, listens, adjusts, and learns from every session.
