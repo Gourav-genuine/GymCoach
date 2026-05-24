@@ -1,7 +1,24 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence, signInAnonymously } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const requiredEnv = [
+  'EXPO_PUBLIC_FIREBASE_API_KEY',
+  'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
+  'EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  'EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'EXPO_PUBLIC_FIREBASE_APP_ID',
+  'EXPO_PUBLIC_CLOUD_FUNCTION_URL',
+];
+
+export function validateAppConfig() {
+  const missing = requiredEnv.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Missing app configuration: ${missing.join(', ')}`);
+  }
+}
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -20,14 +37,3 @@ export const auth = initializeAuth(app, {
 });
 
 export const db = getFirestore(app);
-
-export async function initAnonymousAuth() {
-  try {
-    const cred = await signInAnonymously(auth);
-    console.log('Anonymous auth successful, uid:', cred.user.uid);
-    return cred.user;
-  } catch (error) {
-    console.error('Anonymous auth failed:', error);
-    throw error;
-  }
-}
