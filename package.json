@@ -3,10 +3,28 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "^3.1.0",
+    "@react-navigation/bottom-tabs": "^7.16.1",
+    "@react-navigation/native": "^7.2.4",
+    "axios": "^1.16.1",
     "expo": "~56.0.4",
+    "expo-auth-session": "^56.0.11",
+    "expo-crypto": "^56.0.3",
+    "expo-linear-gradient": "~56.0.4",
     "expo-status-bar": "~56.0.4",
+    "expo-web-browser": "^56.0.5",
+    "firebase": "^12.13.0",
     "react": "19.2.3",
-    "react-native": "0.85.3"
+    "react-native": "0.85.3",
+    "react-native-chart-kit": "^6.12.2",
+    "react-native-paper": "^5.15.2",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-svg": "15.15.4",
+    "react-native-vector-icons": "^10.3.0",
+    "uuid": "^14.0.0"
   },
   "scripts": {
     "start": "expo start",
@@ -14,5 +32,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "firebase-admin": "^13.10.0"
+  }
 }

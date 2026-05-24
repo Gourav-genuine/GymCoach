@@ -1,0 +1,20 @@
+{
+  "name": "ironagent-functions",
+  "description": "IronAgent Cloud Functions - AI Personal Trainer Backend",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-functions": "^6.3.0",
+    "firebase-admin": "^13.0.0",
+    "@google/generative-ai": "^0.24.0",
+    "uuid": "^11.1.0",
+    "cors": "^2.8.5"
+  },
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "private": true
+}
