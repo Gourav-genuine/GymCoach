@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
-import { Text, Card, List, Divider, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Text, Card, List, Divider, useTheme, ActivityIndicator, Chip, Icon } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import InsightCard from '../components/InsightCard';
-import { getRecentWorkouts } from '../services/workoutService';
+import { subscribeToRecentWorkouts } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 
 const screenWidth = Dimensions.get('window').width;
@@ -12,44 +12,32 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const { user, profile } = useAuth();
   const [recentWorkouts, setRecentWorkouts] = useState([]);
-  const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    if (user?.uid) {
-      loadData();
-    }
+    if (!user?.uid) return undefined;
+
+    setLoading(true);
+    const unsubscribe = subscribeToRecentWorkouts(
+      user.uid,
+      7,
+      (workouts) => {
+        setRecentWorkouts(workouts);
+        setErrorMessage('');
+        setLoading(false);
+      },
+      () => {
+        setErrorMessage('Insights could not refresh. Check your connection and Firestore index deployment.');
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
   }, [user?.uid]);
 
-  const loadData = async () => {
-    try {
-      const workouts = await getRecentWorkouts(user.uid, 7);
-      setRecentWorkouts(workouts);
-
-      // Build chart data from workouts
-      if (workouts.length > 0) {
-        const labels = [];
-        const volumes = [];
-
-        workouts.forEach((w) => {
-          const date = w.date?.toDate ? w.date.toDate() : new Date(w.date);
-          const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
-          labels.push(dayLabel);
-
-          volumes.push(calculateWorkoutVolume(w));
-        });
-
-        setChartData({
-          labels,
-          datasets: [{ data: volumes }],
-        });
-      }
-    } catch (error) {
-      console.error('Dashboard load error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const stats = useMemo(() => buildStats(recentWorkouts), [recentWorkouts]);
+  const chartData = useMemo(() => buildChartData(recentWorkouts), [recentWorkouts]);
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,
@@ -101,15 +89,51 @@ export default function DashboardScreen() {
           Insights
         </Text>
         <Text variant="bodyMedium" style={{ color: theme.colors.placeholder }}>
-          Agent analysis from your recent training
+          Live analysis from your recent training
         </Text>
+      </View>
+
+      {errorMessage ? (
+        <View style={[styles.errorBanner, { backgroundColor: theme.colors.error + '18' }]}>
+          <Icon source="alert-circle-outline" size={20} color={theme.colors.error} />
+          <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
+            {errorMessage}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.statGrid}>
+        <MetricTile
+          label="Completed"
+          value={stats.completedSessions}
+          detail={`${recentWorkouts.length} logged`}
+          icon="check-circle-outline"
+        />
+        <MetricTile
+          label="Avg completion"
+          value={`${stats.averageCompletion}%`}
+          detail={`${stats.completedExercises}/${stats.totalExercises} exercises`}
+          icon="percent-outline"
+        />
+        <MetricTile
+          label="Total volume"
+          value={stats.totalVolume}
+          detail={`${stats.averageVolume} avg`}
+          icon="chart-bar"
+        />
+        <MetricTile
+          label="Latest"
+          value={formatStatus(stats.latestWorkout?.status)}
+          detail={stats.latestWorkout ? formatDate(stats.latestWorkout.date) : 'No session'}
+          icon="calendar-check-outline"
+        />
       </View>
 
       {/* Volume Chart */}
       {chartData && (
         <View style={styles.chartSection}>
           <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Training Volume (7 Days)
+            Volume Trend
           </Text>
           <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
             <LineChart
@@ -133,13 +157,13 @@ export default function DashboardScreen() {
       <InsightCard
         title="Agent Read"
         icon="brain"
-        message={buildAgentInsight(recentWorkouts, profile)}
+        message={buildAgentInsight(recentWorkouts, profile, stats)}
       />
 
       <InsightCard
         title="Next Bias"
         icon="target"
-        message={buildNextBias(recentWorkouts, profile)}
+        message={buildNextBias(recentWorkouts, profile, stats)}
       />
 
       {/* Recent Workouts */}
@@ -155,26 +179,9 @@ export default function DashboardScreen() {
               </Text>
             </Card.Content>
           ) : (
-            recentWorkouts.slice(0, 5).map((w, index) => (
+            [...recentWorkouts].reverse().slice(0, 5).map((w, index) => (
               <React.Fragment key={w.id}>
-                <List.Item
-                  title={formatDate(w.date)}
-                  titleStyle={{ color: theme.colors.text, fontWeight: '600' }}
-                  description={`${getCompletedExerciseCount(w)}/${w.exercises?.length || 0} exercises • ${w.status}`}
-                  descriptionStyle={{ color: theme.colors.placeholder }}
-                  left={() => (
-                    <View style={[styles.workoutIcon, { backgroundColor: theme.colors.primary + '20' }]}>
-                      <Text style={{ fontSize: 18 }}>
-                        {w.status === 'completed' ? '✓' : '•'}
-                      </Text>
-                    </View>
-                  )}
-                  right={() => (
-                    <Text variant="bodySmall" style={{ color: theme.colors.placeholder, alignSelf: 'center' }}>
-                      {calculateWorkoutVolume(w)} vol
-                    </Text>
-                  )}
-                />
+                <WorkoutRow workout={w} formatDate={formatDate} />
                 {index < Math.min(recentWorkouts.length, 5) - 1 && (
                   <Divider style={{ backgroundColor: theme.colors.surfaceVariant, marginHorizontal: 16 }} />
                 )}
@@ -185,6 +192,110 @@ export default function DashboardScreen() {
       </View>
     </ScrollView>
   );
+}
+
+function MetricTile({ label, value, detail, icon }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.metricShell}>
+      <Card style={[styles.metricCard, { backgroundColor: theme.colors.surface }]}>
+        <Card.Content style={styles.metricContent}>
+          <View style={[styles.metricIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+            <Icon source={icon} size={18} color={theme.colors.primary} />
+          </View>
+          <Text variant="headlineSmall" numberOfLines={1} adjustsFontSizeToFit style={[styles.metricValue, { color: theme.colors.text }]}>
+            {value}
+          </Text>
+          <Text variant="labelMedium" style={[styles.metricLabel, { color: theme.colors.placeholder }]}>
+            {label}
+          </Text>
+          <Text variant="bodySmall" numberOfLines={1} style={{ color: theme.colors.placeholder }}>
+            {detail}
+          </Text>
+        </Card.Content>
+      </Card>
+    </View>
+  );
+}
+
+function WorkoutRow({ workout, formatDate }) {
+  const theme = useTheme();
+  const completedCount = getCompletedExerciseCount(workout);
+  const totalExercises = workout.exercises?.length || 0;
+  const completionRate = getCompletionRate(workout);
+  const trainerNote = workout.completionSummary?.trainerNote;
+
+  return (
+    <List.Item
+      title={() => (
+        <View style={styles.workoutTitleRow}>
+          <Text variant="titleSmall" style={{ color: theme.colors.text, fontWeight: '700' }}>
+            {formatDate(workout.date)}
+          </Text>
+          <Chip
+            compact
+            mode="flat"
+            style={[styles.statusChip, { backgroundColor: getStatusColor(workout.status, theme) + '20' }]}
+            textStyle={{ color: getStatusColor(workout.status, theme), fontSize: 11, fontWeight: '700' }}
+          >
+            {formatStatus(workout.status)}
+          </Chip>
+        </View>
+      )}
+      description={() => (
+        <View style={styles.workoutDescription}>
+          <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>
+            {completedCount}/{totalExercises} exercises • {completionRate}% complete • {calculateWorkoutVolume(workout)} volume
+          </Text>
+          {trainerNote ? (
+            <Text variant="bodySmall" numberOfLines={2} style={[styles.trainerNote, { color: theme.colors.text }]}>
+              {trainerNote}
+            </Text>
+          ) : null}
+        </View>
+      )}
+      left={() => (
+        <View style={[styles.workoutIcon, { backgroundColor: getStatusColor(workout.status, theme) + '20' }]}>
+          <Icon
+            source={workout.status === 'completed' ? 'check' : 'progress-clock'}
+            size={20}
+            color={getStatusColor(workout.status, theme)}
+          />
+        </View>
+      )}
+    />
+  );
+}
+
+function buildChartData(workouts) {
+  if (!workouts.length) return null;
+
+  return {
+    labels: workouts.map((workout) => {
+      const date = workout.date?.toDate ? workout.date.toDate() : new Date(workout.date);
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    }),
+    datasets: [{ data: workouts.map(calculateWorkoutVolume) }],
+  };
+}
+
+function buildStats(workouts) {
+  const totalVolume = workouts.reduce((sum, workout) => sum + calculateWorkoutVolume(workout), 0);
+  const completedExercises = workouts.reduce((sum, workout) => sum + getCompletedExerciseCount(workout), 0);
+  const totalExercises = workouts.reduce((sum, workout) => sum + (workout.exercises?.length || 0), 0);
+  const completedSessions = workouts.filter((workout) => workout.status === 'completed').length;
+  const latestWorkout = workouts[workouts.length - 1] || null;
+
+  return {
+    totalVolume,
+    completedExercises,
+    totalExercises,
+    completedSessions,
+    latestWorkout,
+    averageVolume: workouts.length ? Math.round(totalVolume / workouts.length) : 0,
+    averageCompletion: totalExercises ? Math.round((completedExercises / totalExercises) * 100) : 0,
+  };
 }
 
 function calculateVolume(exercises = []) {
@@ -220,12 +331,21 @@ function getCompletedExerciseCount(workout) {
   return (workout?.exercises || []).filter((exercise) => exercise.completed).length;
 }
 
-function buildAgentInsight(workouts, profile) {
+function getCompletionRate(workout) {
+  if (typeof workout?.completionSummary?.completionRate === 'number') {
+    return workout.completionSummary.completionRate;
+  }
+
+  const totalExercises = workout?.exercises?.length || 0;
+  if (!totalExercises) return 0;
+  return Math.round((getCompletedExerciseCount(workout) / totalExercises) * 100);
+}
+
+function buildAgentInsight(workouts, profile, stats) {
   if (!workouts.length) {
     return `Once your first session is logged, IronAgent will compare volume, constraints, and goal fit for ${profile?.goal || 'your current goal'}.`;
   }
 
-  const completed = workouts.filter((workout) => workout.status === 'completed').length;
   const latestCompletedNote = [...workouts]
     .reverse()
     .find((workout) => workout.completionSummary?.trainerNote)?.completionSummary?.trainerNote;
@@ -233,18 +353,16 @@ function buildAgentInsight(workouts, profile) {
     return latestCompletedNote;
   }
 
-  const totalVolume = workouts.reduce((sum, workout) => sum + calculateWorkoutVolume(workout), 0);
-  const avgVolume = Math.round(totalVolume / workouts.length);
-  return `${completed} completed sessions are in the recent window. Average planned volume is ${avgVolume}, so the next agent adjustment should preserve momentum while respecting ${formatList(profile?.constraints) || 'your recovery signals'}.`;
+  return `${stats.completedSessions} completed sessions are in the recent window with ${stats.averageCompletion}% average exercise completion. Average planned volume is ${stats.averageVolume}, so the next adjustment should preserve momentum while respecting ${formatList(profile?.constraints) || 'your recovery signals'}.`;
 }
 
-function buildNextBias(workouts, profile) {
+function buildNextBias(workouts, profile, stats) {
   const equipment = formatList(profile?.equipment) || 'available equipment';
   if (!workouts.length) {
     return `The first generated plan will bias toward ${profile?.goal || 'your goal'} using ${equipment}.`;
   }
 
-  const lastWorkout = workouts[workouts.length - 1];
+  const lastWorkout = stats.latestWorkout;
   const exerciseNames = (lastWorkout.exercises || []).slice(0, 2).map((exercise) => exercise.name).join(', ');
   return `Recent work included ${exerciseNames || 'your current plan'}. IronAgent should bias the next session toward balanced stimulus, controlled fatigue, and ${equipment}.`;
 }
@@ -252,6 +370,21 @@ function buildNextBias(workouts, profile) {
 function formatList(value) {
   if (!Array.isArray(value) || value.length === 0) return '';
   return value.join(', ');
+}
+
+function formatStatus(status) {
+  if (!status) return 'No data';
+  return status.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getStatusColor(status, theme) {
+  switch (status) {
+    case 'completed': return theme.colors.accent;
+    case 'ready-to-complete': return theme.colors.primary;
+    case 'stopped': return theme.colors.error;
+    case 'in-progress': return '#D0A85C';
+    default: return theme.colors.placeholder;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -279,6 +412,51 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginHorizontal: 16,
   },
+  errorBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+    lineHeight: 18,
+  },
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  metricShell: {
+    width: '50%',
+    padding: 4,
+  },
+  metricCard: {
+    borderRadius: 8,
+  },
+  metricContent: {
+    minHeight: 132,
+  },
+  metricIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  metricValue: {
+    fontWeight: '800',
+  },
+  metricLabel: {
+    fontWeight: '700',
+    marginTop: 4,
+    marginBottom: 2,
+  },
   chartSection: {
     marginTop: 8,
     marginBottom: 16,
@@ -303,10 +481,25 @@ const styles = StyleSheet.create({
   workoutIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
     alignSelf: 'center',
+  },
+  workoutTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  statusChip: {
+    height: 24,
+  },
+  workoutDescription: {
+    gap: 6,
+  },
+  trainerNote: {
+    lineHeight: 18,
   },
 });

@@ -135,6 +135,12 @@ function getFunctionUrl(kind = 'feedback') {
       replaceFunctionName(feedbackUrl, 'completeWorkout');
   }
 
+  if (kind === 'resetWorkout') {
+    return process.env.EXPO_PUBLIC_RESET_WORKOUT_FUNCTION_URL ||
+      (generateUrl && replaceFunctionName(generateUrl, 'resetTodaysWorkout')) ||
+      replaceFunctionName(feedbackUrl, 'resetTodaysWorkout');
+  }
+
   return feedbackUrl;
 }
 
@@ -166,7 +172,7 @@ function formatFunctionError(error, fallbackMessage) {
 }
 
 /**
- * Fetch past completed workouts for the dashboard chart.
+ * Fetch recent workouts for the dashboard chart.
  */
 export async function getRecentWorkouts(uid, days = 7) {
   try {
@@ -185,6 +191,24 @@ export async function getRecentWorkouts(uid, days = 7) {
     console.error('Error fetching recent workouts:', error);
     return [];
   }
+}
+
+export function subscribeToRecentWorkouts(uid, days = 7, callback, onError) {
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const q = query(
+    collection(db, 'daily_workouts'),
+    where('uid', '==', uid),
+    where('date', '>=', Timestamp.fromDate(startDate)),
+    orderBy('date', 'asc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+  }, (error) => {
+    console.error('Recent workouts snapshot error:', error);
+    if (onError) onError(error);
+  });
 }
 
 /**
@@ -260,5 +284,20 @@ export async function completeWorkout(uid, workoutId) {
     return response.data;
   } catch (error) {
     throw formatFunctionError(error, 'Workout completion failed');
+  }
+}
+
+export async function resetTodaysWorkout(uid) {
+  const functionUrl = getFunctionUrl('resetWorkout');
+
+  try {
+    const response = await axios.post(functionUrl, { uid }, {
+      headers: await getAuthHeaders(),
+      timeout: 15000,
+    });
+
+    return response.data;
+  } catch (error) {
+    throw formatFunctionError(error, 'Workout reset failed');
   }
 }

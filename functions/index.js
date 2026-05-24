@@ -300,6 +300,46 @@ exports.completeWorkout = onRequest(
   }
 );
 
+exports.resetTodaysWorkout = onRequest(
+  { cors: true, region: "us-central1" },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const uid = await requireUser(req);
+      const workout = await getTodaysWorkout(uid);
+      if (!workout) {
+        res.status(200).json({
+          success: true,
+          reset: false,
+          agent_message: "No workout was found for today.",
+        });
+        return;
+      }
+
+      await db.collection("daily_workouts").doc(workout.id).delete();
+      await writeAgentEvent(uid, {
+        type: "reset_workout",
+        workoutId: workout.id,
+        action: "deleted",
+        previousStatus: workout.status || null,
+      });
+
+      res.status(200).json({
+        success: true,
+        reset: true,
+        workout_id: workout.id,
+        agent_message: "Today's workout was reset. A fresh plan will be generated next.",
+      });
+    } catch (error) {
+      sendError(res, error);
+    }
+  }
+);
+
 exports.processWorkoutFeedback = onRequest(
   { cors: true, region: "us-central1", secrets: [geminiApiKey] },
   async (req, res) => {

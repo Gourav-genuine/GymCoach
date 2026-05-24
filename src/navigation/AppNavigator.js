@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Icon, useTheme } from 'react-native-paper';
 import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -47,6 +48,14 @@ export default function AppNavigator() {
         options={{
           tabBarLabel: 'Insights',
           tabBarIcon: ({ color }) => <TabIcon source="chart-line" color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color }) => <TabIcon source="account-cog" color={color} />,
         }}
       />
     </Tab.Navigator>

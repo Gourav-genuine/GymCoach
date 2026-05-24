@@ -39,7 +39,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 export default function ActiveWorkoutScreen() {
   const theme = useTheme();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [agentThinking, setAgentThinking] = useState(false);
@@ -295,7 +295,6 @@ export default function ActiveWorkoutScreen() {
           title="IronAgent"
           titleStyle={{ color: theme.colors.text, fontWeight: '800', fontSize: 22 }}
         />
-        <Appbar.Action icon="logout" iconColor={theme.colors.placeholder} onPress={signOut} />
       </Appbar.Header>
 
       <FlatList
