@@ -7,11 +7,29 @@ import {
   UIManager,
   Platform,
 } from 'react-native';
-import { Text, Snackbar, Chip, useTheme, Appbar, ActivityIndicator } from 'react-native-paper';
+import {
+  Appbar,
+  ActivityIndicator,
+  Button,
+  Chip,
+  Dialog,
+  Portal,
+  ProgressBar,
+  Surface,
+  Text,
+  Snackbar,
+  useTheme,
+} from 'react-native-paper';
 import ExerciseCard from '../components/ExerciseCard';
 import AgentChatInput from '../components/AgentChatInput';
 import AgentThinkingOverlay from '../components/AgentThinkingOverlay';
-import { generateTodaysWorkout, subscribeToTodaysWorkout, sendFeedback } from '../services/workoutService';
+import {
+  completeWorkout,
+  generateTodaysWorkout,
+  subscribeToTodaysWorkout,
+  sendFeedback,
+  updateExerciseCompletion,
+} from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 
 // Enable LayoutAnimation on Android
@@ -26,6 +44,9 @@ export default function ActiveWorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [agentThinking, setAgentThinking] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [busyExerciseIds, setBusyExerciseIds] = useState({});
+  const [completionSummary, setCompletionSummary] = useState(null);
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
   const prevExerciseCount = useRef(0);
 
@@ -61,10 +82,10 @@ export default function ActiveWorkoutScreen() {
           message: result.agent_message || 'Your workout is ready.',
         });
       } catch (error) {
-        console.error('Workout generation error:', error);
+        console.warn('Workout generation error:', error.message);
         setSnackbar({
           visible: true,
-          message: 'IronAgent could not generate today’s workout. Try again in a moment.',
+          message: error.message || 'IronAgent could not generate today’s workout. Try again in a moment.',
         });
       } finally {
         setGenerating(false);
@@ -84,10 +105,10 @@ export default function ActiveWorkoutScreen() {
         setSnackbar({ visible: true, message: result.agent_message });
       }
     } catch (error) {
-      console.error('Feedback error:', error);
+      console.warn('Feedback error:', error.message);
       setSnackbar({
         visible: true,
-        message: 'Failed to reach IronAgent. Please try again.',
+        message: error.message || 'Failed to reach IronAgent. Please try again.',
       });
     } finally {
       setAgentThinking(false);
@@ -97,14 +118,65 @@ export default function ActiveWorkoutScreen() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'in-progress': return theme.colors.primary;
+      case 'ready-to-complete': return theme.colors.accent;
       case 'completed': return '#7FA987';
+      case 'stopped': return theme.colors.error;
       case 'pending': return '#D0A85C';
       default: return theme.colors.placeholder;
     }
   };
 
+  const exercises = workout?.exercises || [];
+  const completedCount = exercises.filter((exercise) => exercise.completed).length;
+  const completionRatio = exercises.length ? completedCount / exercises.length : 0;
+  const isWorkoutCompleted = workout?.status === 'completed';
+
+  const handleToggleComplete = useCallback(async (exercise, completed) => {
+    if (!workout?.id || !user?.uid) return;
+
+    setBusyExerciseIds((current) => ({ ...current, [exercise.id]: true }));
+    try {
+      await updateExerciseCompletion(user.uid, workout.id, exercise.id, completed);
+    } catch (error) {
+      console.warn('Exercise completion error:', error.message);
+      setSnackbar({
+        visible: true,
+        message: error.message || 'Could not update exercise completion.',
+      });
+    } finally {
+      setBusyExerciseIds((current) => ({ ...current, [exercise.id]: false }));
+    }
+  }, [user?.uid, workout?.id]);
+
+  const handleCompleteWorkout = useCallback(async () => {
+    if (!workout?.id || !user?.uid) return;
+
+    setCompleting(true);
+    try {
+      const result = await completeWorkout(user.uid, workout.id);
+      setCompletionSummary(result.summary);
+      setSnackbar({
+        visible: true,
+        message: result.agent_message || 'Workout completed.',
+      });
+    } catch (error) {
+      console.warn('Workout completion error:', error.message);
+      setSnackbar({
+        visible: true,
+        message: error.message || 'Could not complete this workout.',
+      });
+    } finally {
+      setCompleting(false);
+    }
+  }, [user?.uid, workout?.id]);
+
   const renderExercise = ({ item, index }) => (
-    <ExerciseCard exercise={item} index={index} />
+    <ExerciseCard
+      exercise={item}
+      index={index}
+      onToggleComplete={handleToggleComplete}
+      busy={Boolean(busyExerciseIds[item.id])}
+    />
   );
 
   const renderHeader = () => (
@@ -126,7 +198,19 @@ export default function ActiveWorkoutScreen() {
               {workout.status?.toUpperCase()}
             </Chip>
             <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>
-              {workout.exercises?.length || 0} exercises
+              {completedCount}/{workout.exercises?.length || 0} done
+            </Text>
+          </View>
+        )}
+        {workout && (
+          <View style={styles.progressBlock}>
+            <ProgressBar
+              progress={completionRatio}
+              color={theme.colors.accent}
+              style={[styles.progressBar, { backgroundColor: theme.colors.surfaceVariant }]}
+            />
+            <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>
+              {completionRatio === 1 ? 'Ready to finish the session.' : 'Mark exercises as you complete them.'}
             </Text>
           </View>
         )}
@@ -156,6 +240,27 @@ export default function ActiveWorkoutScreen() {
         </View>
       </View>
     </View>
+  );
+
+  const renderFooter = () => (
+    <Surface style={[styles.finishPanel, { backgroundColor: theme.colors.surface }]} elevation={1}>
+      <Text variant="titleMedium" style={[styles.finishTitle, { color: theme.colors.text }]}>
+        Session closeout
+      </Text>
+      <Text variant="bodySmall" style={[styles.finishText, { color: theme.colors.placeholder }]}>
+        Complete the workout to lock the session, calculate planned volume, and generate the trainer note for future adjustments.
+      </Text>
+      <Button
+        mode="contained"
+        icon="flag-checkered"
+        onPress={handleCompleteWorkout}
+        loading={completing}
+        disabled={completing || isWorkoutCompleted || exercises.length === 0}
+        style={styles.finishButton}
+      >
+        {isWorkoutCompleted ? 'Workout completed' : 'Complete workout'}
+      </Button>
+    </Surface>
   );
 
   if (loading) {
@@ -198,6 +303,7 @@ export default function ActiveWorkoutScreen() {
         renderItem={renderExercise}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
@@ -205,6 +311,42 @@ export default function ActiveWorkoutScreen() {
       <AgentChatInput onSend={handleSendFeedback} disabled={agentThinking} />
 
       <AgentThinkingOverlay visible={agentThinking} />
+
+      <Portal>
+        <Dialog
+          visible={Boolean(completionSummary)}
+          onDismiss={() => setCompletionSummary(null)}
+          style={{ backgroundColor: theme.colors.surface }}
+        >
+          <Dialog.Title style={{ color: theme.colors.text }}>Session Summary</Dialog.Title>
+          <Dialog.Content>
+            <View style={styles.summaryMetricRow}>
+              <View style={styles.summaryMetric}>
+                <Text variant="headlineSmall" style={{ color: theme.colors.primary }}>
+                  {completionSummary?.completionRate || 0}%
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>
+                  consistency
+                </Text>
+              </View>
+              <View style={styles.summaryMetric}>
+                <Text variant="headlineSmall" style={{ color: theme.colors.primary }}>
+                  {completionSummary?.totalVolume || 0}
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>
+                  volume
+                </Text>
+              </View>
+            </View>
+            <Text variant="bodyMedium" style={[styles.summaryNote, { color: theme.colors.text }]}>
+              {completionSummary?.trainerNote}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setCompletionSummary(null)}>Done</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <Snackbar
         visible={snackbar.visible}
@@ -247,7 +389,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 28,
+  },
+  progressBlock: {
+    marginTop: 12,
+    gap: 8,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 8,
   },
   agentSummary: {
     borderRadius: 8,
@@ -266,5 +416,35 @@ const styles = StyleSheet.create({
   },
   quickChip: {
     borderRadius: 8,
+  },
+  finishPanel: {
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 16,
+  },
+  finishTitle: {
+    fontWeight: '800',
+  },
+  finishText: {
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  finishButton: {
+    marginTop: 14,
+  },
+  summaryMetricRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  summaryMetric: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#26231F',
+  },
+  summaryNote: {
+    lineHeight: 21,
   },
 });

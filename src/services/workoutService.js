@@ -98,15 +98,41 @@ export function subscribeToTodaysWorkout(uid, callback) {
   });
 }
 
+function replaceFunctionName(functionUrl, nextName) {
+  try {
+    const url = new URL(functionUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length === 0) return functionUrl;
+    parts[parts.length - 1] = nextName;
+    url.pathname = `/${parts.join('/')}`;
+    return url.toString();
+  } catch (error) {
+    return functionUrl.replace(/\/?[^/]*$/, `/${nextName}`);
+  }
+}
+
 function getFunctionUrl(kind = 'feedback') {
   const feedbackUrl = process.env.EXPO_PUBLIC_CLOUD_FUNCTION_URL;
+  const generateUrl = process.env.EXPO_PUBLIC_GENERATE_WORKOUT_FUNCTION_URL;
   if (!feedbackUrl) {
     throw new Error('Cloud Function URL not configured. Set EXPO_PUBLIC_CLOUD_FUNCTION_URL in .env');
   }
 
   if (kind === 'generate') {
-    return process.env.EXPO_PUBLIC_GENERATE_WORKOUT_FUNCTION_URL ||
-      feedbackUrl.replace(/processWorkoutFeedback$/, 'generateTodaysWorkout');
+    return generateUrl ||
+      replaceFunctionName(feedbackUrl, 'generateTodaysWorkout');
+  }
+
+  if (kind === 'exerciseCompletion') {
+    return process.env.EXPO_PUBLIC_EXERCISE_COMPLETION_FUNCTION_URL ||
+      (generateUrl && replaceFunctionName(generateUrl, 'updateExerciseCompletion')) ||
+      replaceFunctionName(feedbackUrl, 'updateExerciseCompletion');
+  }
+
+  if (kind === 'completeWorkout') {
+    return process.env.EXPO_PUBLIC_COMPLETE_WORKOUT_FUNCTION_URL ||
+      (generateUrl && replaceFunctionName(generateUrl, 'completeWorkout')) ||
+      replaceFunctionName(feedbackUrl, 'completeWorkout');
   }
 
   return feedbackUrl;
@@ -122,6 +148,21 @@ async function getAuthHeaders() {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   };
+}
+
+function formatFunctionError(error, fallbackMessage) {
+  const status = error.response?.status;
+  const responseMessage = error.response?.data?.message || error.response?.data?.error;
+  const statusPrefix = status ? ` (${status})` : '';
+  const message = responseMessage
+    ? `${fallbackMessage}${statusPrefix}: ${responseMessage}`
+    : error.message || fallbackMessage;
+
+  const normalized = new Error(message);
+  normalized.status = status;
+  normalized.response = error.response;
+  normalized.cause = error;
+  return normalized;
 }
 
 /**
@@ -165,8 +206,7 @@ export async function sendFeedback(uid, userMessage, workoutId) {
 
     return response.data;
   } catch (error) {
-    console.error('Error sending feedback:', error);
-    throw error;
+    throw formatFunctionError(error, 'IronAgent feedback request failed');
   }
 }
 
@@ -181,7 +221,44 @@ export async function generateTodaysWorkout(uid) {
 
     return response.data;
   } catch (error) {
-    console.error('Error generating workout:', error);
-    throw error;
+    throw formatFunctionError(error, 'IronAgent workout generation failed');
+  }
+}
+
+export async function updateExerciseCompletion(uid, workoutId, exerciseId, completed) {
+  const functionUrl = getFunctionUrl('exerciseCompletion');
+
+  try {
+    const response = await axios.post(functionUrl, {
+      uid,
+      workout_id: workoutId,
+      exercise_id: exerciseId,
+      completed,
+    }, {
+      headers: await getAuthHeaders(),
+      timeout: 15000,
+    });
+
+    return response.data;
+  } catch (error) {
+    throw formatFunctionError(error, 'Exercise completion update failed');
+  }
+}
+
+export async function completeWorkout(uid, workoutId) {
+  const functionUrl = getFunctionUrl('completeWorkout');
+
+  try {
+    const response = await axios.post(functionUrl, {
+      uid,
+      workout_id: workoutId,
+    }, {
+      headers: await getAuthHeaders(),
+      timeout: 15000,
+    });
+
+    return response.data;
+  } catch (error) {
+    throw formatFunctionError(error, 'Workout completion failed');
   }
 }

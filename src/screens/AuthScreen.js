@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function AuthScreen() {
   const theme = useTheme();
-  const { signInWithEmail, createAccountWithEmail, signInWithGoogle, configError } = useAuth();
+  const { signInWithEmail, createAccountWithEmail, signInWithGoogle, continueAsGuest, configError } = useAuth();
   const [mode, setMode] = useState('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,6 +42,18 @@ export default function AuthScreen() {
     }
   };
 
+  const handleGuestAuth = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      await continueAsGuest();
+    } catch (authError) {
+      setError(authError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -52,11 +64,28 @@ export default function AuthScreen() {
           IronAgent
         </Text>
         <Text variant="bodyLarge" style={[styles.subtitle, { color: theme.colors.placeholder }]}>
-          Adaptive coaching that builds and adjusts your training in real time.
+          Professional training intelligence that builds, tracks, and pivots your session in real time.
         </Text>
       </View>
 
       <Surface style={[styles.panel, { backgroundColor: theme.colors.surface }]} elevation={2}>
+        <Button
+          mode="contained"
+          icon="flash"
+          onPress={handleGuestAuth}
+          loading={busy}
+          disabled={busy}
+          style={styles.guestButton}
+        >
+          Try instantly
+        </Button>
+
+        <View style={styles.dividerRow}>
+          <Divider style={styles.divider} />
+          <Text variant="bodySmall" style={{ color: theme.colors.placeholder }}>or use an account</Text>
+          <Divider style={styles.divider} />
+        </View>
+
         <Text variant="titleLarge" style={[styles.panelTitle, { color: theme.colors.text }]}>
           {isSignIn ? 'Sign in' : 'Create account'}
         </Text>
@@ -138,6 +167,9 @@ const styles = StyleSheet.create({
   panel: {
     borderRadius: 8,
     padding: 18,
+  },
+  guestButton: {
+    marginBottom: 2,
   },
   panelTitle: {
     fontWeight: '700',

@@ -36,22 +36,7 @@ export default function DashboardScreen() {
           const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
           labels.push(dayLabel);
 
-          // Calculate volume: sum of (sets * average reps) for each exercise
-          let volume = 0;
-          (w.exercises || []).forEach((ex) => {
-            const repsStr = String(ex.reps);
-            let avgReps;
-            if (repsStr.includes('-')) {
-              const parts = repsStr.split('-').map(Number);
-              avgReps = (parts[0] + parts[1]) / 2;
-            } else if (repsStr.toLowerCase().includes('fail')) {
-              avgReps = 12; // Estimate for "to failure"
-            } else {
-              avgReps = parseInt(repsStr) || 0;
-            }
-            volume += (ex.sets || 0) * avgReps;
-          });
-          volumes.push(volume);
+          volumes.push(calculateWorkoutVolume(w));
         });
 
         setChartData({
@@ -175,7 +160,7 @@ export default function DashboardScreen() {
                 <List.Item
                   title={formatDate(w.date)}
                   titleStyle={{ color: theme.colors.text, fontWeight: '600' }}
-                  description={`${w.exercises?.length || 0} exercises • ${w.status}`}
+                  description={`${getCompletedExerciseCount(w)}/${w.exercises?.length || 0} exercises • ${w.status}`}
                   descriptionStyle={{ color: theme.colors.placeholder }}
                   left={() => (
                     <View style={[styles.workoutIcon, { backgroundColor: theme.colors.primary + '20' }]}>
@@ -186,7 +171,7 @@ export default function DashboardScreen() {
                   )}
                   right={() => (
                     <Text variant="bodySmall" style={{ color: theme.colors.placeholder, alignSelf: 'center' }}>
-                      {calculateVolume(w.exercises)} vol
+                      {calculateWorkoutVolume(w)} vol
                     </Text>
                   )}
                 />
@@ -220,13 +205,35 @@ function calculateVolume(exercises = []) {
   return total;
 }
 
+function calculateWorkoutVolume(workout) {
+  if (typeof workout?.totalVolume === 'number') return workout.totalVolume;
+  if (typeof workout?.completionSummary?.totalVolume === 'number') {
+    return workout.completionSummary.totalVolume;
+  }
+  return calculateVolume(workout?.exercises || []);
+}
+
+function getCompletedExerciseCount(workout) {
+  if (typeof workout?.completionSummary?.completedExerciseCount === 'number') {
+    return workout.completionSummary.completedExerciseCount;
+  }
+  return (workout?.exercises || []).filter((exercise) => exercise.completed).length;
+}
+
 function buildAgentInsight(workouts, profile) {
   if (!workouts.length) {
     return `Once your first session is logged, IronAgent will compare volume, constraints, and goal fit for ${profile?.goal || 'your current goal'}.`;
   }
 
   const completed = workouts.filter((workout) => workout.status === 'completed').length;
-  const totalVolume = workouts.reduce((sum, workout) => sum + calculateVolume(workout.exercises), 0);
+  const latestCompletedNote = [...workouts]
+    .reverse()
+    .find((workout) => workout.completionSummary?.trainerNote)?.completionSummary?.trainerNote;
+  if (latestCompletedNote) {
+    return latestCompletedNote;
+  }
+
+  const totalVolume = workouts.reduce((sum, workout) => sum + calculateWorkoutVolume(workout), 0);
   const avgVolume = Math.round(totalVolume / workouts.length);
   return `${completed} completed sessions are in the recent window. Average planned volume is ${avgVolume}, so the next agent adjustment should preserve momentum while respecting ${formatList(profile?.constraints) || 'your recovery signals'}.`;
 }

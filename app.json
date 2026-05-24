@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "GymCoach",
-    "slug": "GymCoach",
+    "name": "Iron Agent",
+    "slug": "ironagent",
+    "scheme": "gymcoach",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
     },

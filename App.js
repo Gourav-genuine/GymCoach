@@ -24,7 +24,7 @@ const navigationTheme = {
 export default function App() {
   return (
     <PaperProvider theme={theme}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0E1A" />
+      <StatusBar barStyle="light-content" backgroundColor="#111111" />
       <NavigationContainer theme={navigationTheme}>
         <AuthProvider>
           <AppGate />
@@ -82,7 +82,7 @@ function AppGate() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: '#0A0E1A',
+    backgroundColor: '#111111',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorSubtext: {
-    color: '#8892A4',
+    color: '#9B9386',
     marginTop: 8,
     textAlign: 'center',
     paddingHorizontal: 40,

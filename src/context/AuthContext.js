@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
@@ -23,12 +24,12 @@ export function AuthProvider({ children }) {
   const [configError, setConfigError] = useState(null);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'missing-google-web-client-id',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'missing-google-ios-client-id',
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'missing-google-android-client-id',
   });
 
-  const refreshProfile = useCallback(async (activeUser = user) => {
+  const refreshProfile = useCallback(async (activeUser = auth.currentUser) => {
     if (!activeUser) {
       setProfile(null);
       return null;
@@ -37,7 +38,7 @@ export function AuthProvider({ children }) {
     const nextProfile = await getUserProfile(activeUser.uid);
     setProfile(nextProfile);
     return nextProfile;
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     try {
@@ -85,7 +86,12 @@ export function AuthProvider({ children }) {
     createUserWithEmailAndPassword(auth, email.trim(), password)
   ), []);
 
+  const continueAsGuest = useCallback(() => signInAnonymously(auth), []);
+
   const signInWithGoogle = useCallback(() => {
+    if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
+      throw new Error('Google sign-in is not configured. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.');
+    }
     if (!request) {
       throw new Error('Google sign-in is not ready yet.');
     }
@@ -100,6 +106,7 @@ export function AuthProvider({ children }) {
     refreshProfile,
     signInWithEmail,
     createAccountWithEmail,
+    continueAsGuest,
     signInWithGoogle,
     signOut: () => signOut(auth),
   }), [
@@ -110,6 +117,7 @@ export function AuthProvider({ children }) {
     refreshProfile,
     signInWithEmail,
     createAccountWithEmail,
+    continueAsGuest,
     signInWithGoogle,
   ]);
 

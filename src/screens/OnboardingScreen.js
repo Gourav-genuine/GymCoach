@@ -35,7 +35,7 @@ const steps = [
     key: 'sessionLength',
     title: 'How long should workouts be?',
     helper: 'I will build sessions to fit this window.',
-    options: ['30 min', '45 min', '60 min', '75+ min'],
+    options: ['30 min', '45 min', '60 min', '90-120 min high volume'],
   },
 ];
 

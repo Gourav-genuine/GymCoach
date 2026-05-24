@@ -1,7 +1,8 @@
 {
   "auth": {
     "providers": {
-      "anonymous": true
+      "emailPassword": true,
+      "google.com": true
     }
   },
   "firestore": {
